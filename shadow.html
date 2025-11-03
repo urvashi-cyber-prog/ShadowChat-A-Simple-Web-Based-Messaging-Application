@@ -1,0 +1,565 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ShadowChat — Simple Messaging UI</title>
+  <meta name="description" content="A lightweight responsive messaging UI (signup, contacts, chat). Uses localStorage for demo state."/>
+  <style>
+    /* ========== BASE / RESET ========== */
+    :root{
+      --bg:#0f1114; /* deep slate */
+      --panel:#16181b; /* slightly lighter panel */
+      --muted:#9aa4ad;
+      --accent:#7c5cff; /* purple accent */
+      --accent-2:#00d3a9; /* green for online */
+      --glass: rgba(255,255,255,0.03);
+      --radius:12px;
+      --max-width:1100px;
+      --text:#e6eef6;
+    }
+    /* Light theme overrides — applied when <html> has class "light-theme" */
+    .light-theme{
+      --bg: #f7fafc; /* pale */
+      --panel: #ffffff;
+      --muted: #6b7280;
+      --accent: #4f46e5;
+      --accent-2: #10b981;
+      --glass: rgba(0,0,0,0.03);
+      --text: #0b1220;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;color:var(--text);background:linear-gradient(180deg,#070708 0%, #0f1114 100%);}
+    a{color:inherit;text-decoration:none}
+
+    /* ========== LAYOUT ========== */
+    .app{
+      max-width:var(--max-width);
+      margin:28px auto;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:16px;
+      overflow:hidden;
+      box-shadow:0 6px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+      display:flex;min-height:600px;gap:1px; /* tiny separator look */
+    }
+
+    /* Panels */
+    nav.side{width:300px;background:var(--panel);padding:18px;display:flex;flex-direction:column;gap:14px}
+    main.view{flex:1;background:var(--bg);display:flex;flex-direction:column}
+
+    /* ========== NAV (left) ========== */
+    .brand{display:flex;align-items:center;gap:10px}
+    .brand h1{font-size:18px;margin:0}
+    .profile-mini{margin-left:auto;display:flex;align-items:center;gap:8px}
+    .avatar{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#3f2b8e);display:flex;align-items:center;justify-content:center;font-weight:700}
+
+    /* Search */
+    .search{display:flex;gap:8px;align-items:center}
+    .search input{flex:1;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:var(--glass);color:var(--text)}
+
+    /* Contact list */
+    .contacts{overflow:auto;padding-right:6px;display:flex;flex-direction:column;gap:10px}
+    .contact{display:flex;gap:12px;align-items:center;padding:10px;border-radius:10px;cursor:pointer;transition:background .12s}
+    .contact:hover{background:rgba(255,255,255,0.02)}
+    .contact .meta{flex:1}
+    .contact .name{font-weight:600}
+    .contact .last{font-size:13px;color:var(--muted)}
+    .status-dot{width:10px;height:10px;border-radius:50%}
+
+    /* ========== MAIN - top bar ========== */
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px;border-bottom:1px solid rgba(255,255,255,0.02)}
+    .topbar .title{font-size:16px;font-weight:700}
+
+    /* ========== CHAT AREA ========== */
+    .chat-area{display:flex;flex-direction:column;flex:1;padding:18px;gap:12px}
+    .messages{flex:1;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:10px}
+    .msg{max-width:70%;padding:10px 12px;border-radius:12px;line-height:1.25}
+    .msg.me{margin-left:auto;background:linear-gradient(90deg,var(--accent),#5a40f0);color:white;border-bottom-right-radius:4px}
+    .msg.them{background:rgba(255,255,255,0.03);color:var(--text);border-bottom-left-radius:4px}
+    .time{font-size:11px;color:var(--muted);margin-top:6px}
+
+    .composer{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(255,255,255,0.02)}
+    .composer input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:var(--text)}
+    .btn{padding:10px 14px;border-radius:10px;border:0;background:var(--accent);color:white;font-weight:600;cursor:pointer}
+
+    /* ========== SIGNUP / WELCOME ========== */
+    .center{display:grid;place-items:center;height:100%}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:22px;border-radius:12px;width:100%;max-width:420px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=text], input[type=email], input[type=password]{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:var(--text);margin-bottom:12px}
+    .muted{color:var(--muted);font-size:13px}
+
+    /* small screens */
+    @media (max-width:900px){
+      .app{flex-direction:column;margin:8px;border-radius:0}
+      nav.side{width:100%;display:flex;flex-direction:row;align-items:center;padding:12px;gap:12px}
+      .contacts{display:none} /* hide contacts list to simplify mobile flow */
+      .topbar{display:flex}
+    }
+    @media (max-width:520px){
+      .msg{max-width:86%}
+      .brand h1{font-size:16px}
+    }
+
+    /* tiny polish */
+    .small{font-size:13px;color:var(--muted)}
+    .ghost{background:transparent;border:1px solid rgba(255,255,255,0.03);padding:8px;border-radius:8px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- LEFT / NAV -->
+    <nav class="side" aria-label="left sidebar">
+      <div class="brand">
+        <svg width="36" height="36" viewBox="0 0 24 24" aria-hidden="true" fill="none"><rect x="1" y="1" width="22" height="22" rx="6" stroke="url(#g)" stroke-width="1.5"/><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#00d3a9"/></linearGradient></defs></svg>
+        <h1>ShadowChat</h1>
+        <div class="profile-mini" id="profileMini">
+          <div class="avatar" id="miniAvatar">SC</div>
+        </div>
+      </div>
+
+      <div class="search">
+        <input id="searchContacts" placeholder="Search contacts" aria-label="Search contacts">
+        <button class="ghost" id="newContactBtn">+ New</button>
+      </div>
+
+      <div class="contacts" id="contactsList" role="list">
+        <!-- contacts injected here -->
+      </div>
+
+      <div class="small muted">Theme: Dark • Prototype • Local only</div>
+      <div style="margin-top:auto;display:flex;gap:8px;align-items:center">
+        <button class="ghost" id="logoutBtn">Log out</button>
+        <div class="small muted">v1.0</div>
+      </div>
+    </nav>
+
+    <!-- RIGHT / MAIN VIEW -->
+    <main class="view" id="mainView">
+      <div class="topbar">
+        <div class="title" id="mainTitle">Welcome</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="small muted" id="topRightMeta">Logged out</div>
+            <button class="ghost" id="themeToggleBtn" title="Toggle theme">Theme</button>
+          </div>
+      </div>
+
+      <section class="chat-area" id="contentArea">
+        <!-- content injected by JS: signup, home, chat -->
+      </section>
+    </main>
+  </div>
+
+<script>
+/*
+  ShadowChat - single-file demo app
+  - simple SPA (hash-driven): #signup, #home, #chat?id=<id>
+  - uses localStorage to persist users, current user, and chats
+  - intentionally simple: no server, no auth, safe for quick demos
+*/
+
+// ---------------------- Utilities ----------------------
+const $ = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+const uid = () => Math.random().toString(36).slice(2,9);
+const now = () => new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+// Content moderation helpers
+const BLOCKED_WORDS = new Set(['fuck', 'shit', 'ass', 'idiot', 'stupid', 'hate', 'kill', 'die','bitch','slut','bastard','nigga']);
+const MAX_REPEATED = 5; // max repeated characters
+const WARNING_THRESHOLD = 3; // warnings before block
+const BLOCK_DURATION = 1000 * 60 * 5; // 5 minutes
+
+// Track user warnings
+const userWarnings = new Map(); // userId -> { count, lastWarning }
+
+function validateMessage(text) {
+  if (!text || text.length < 1) return { ok: false, reason: 'Message too short' };
+  if (text.length > 500) return { ok: false, reason: 'Message too long (max 500 chars)' };
+  
+  // Check repeated characters (spam prevention)
+  if (text.match(/(.)\1{${MAX_REPEATED},}/)) return { ok: false, reason: 'Too many repeated characters' };
+  
+  // Check profanity
+  const words = text.toLowerCase().split(/\W+/);
+  const bad = words.filter(w => BLOCKED_WORDS.has(w));
+  if (bad.length > 0) return { ok: false, reason: 'Message contains inappropriate language' };
+  
+  return { ok: true };
+}
+
+function warnUser(userId) {
+  const warns = userWarnings.get(userId) || { count: 0, lastWarning: 0 };
+  warns.count++; warns.lastWarning = Date.now();
+  userWarnings.set(userId, warns);
+  
+  // Check if user should be blocked
+  if (warns.count >= WARNING_THRESHOLD) {
+    const users = STORAGE.getUsers();
+    const user = users.find(u => u.id === userId);
+    if (user) {
+      user.blocked = Date.now() + BLOCK_DURATION;
+      STORAGE.setUsers(users);
+      return true; // user was blocked
+    }
+  }
+  return false; // just a warning
+}
+
+// ---------------------- Persistence ----------------------
+const STORAGE = {
+  getUsers(){ return JSON.parse(localStorage.getItem('sc_users')||'[]'); },
+  setUsers(u){ localStorage.setItem('sc_users', JSON.stringify(u)); },
+  getCurrent(){ return JSON.parse(localStorage.getItem('sc_current')||'null'); },
+  setCurrent(user){ localStorage.setItem('sc_current', JSON.stringify(user)); },
+  getChats(){ return JSON.parse(localStorage.getItem('sc_chats')||'{}'); },
+  setChats(c){ localStorage.setItem('sc_chats', JSON.stringify(c)); }
+};
+
+// ---------------------- Boot / Demo seed ----------------------
+(function seed(){
+  if(STORAGE.getUsers().length===0){
+    const demoUsers = [
+      {id:'u_alex',name:'Alex Morgan',email:'alex@example.com',initials:'AM',online:true},
+      {id:'u_ria',name:'Ria Kapoor',email:'ria@example.com',initials:'RK',online:true},
+      {id:'u_tom',name:'Tom Reed',email:'tom@example.com',initials:'TR',online:false}
+    ];
+    STORAGE.setUsers(demoUsers);
+    const demoChats = {
+      'u_alex': [ {from:'u_alex',text:'Hey! You alive?',time:'09:41'}, {from:'me',text:'Always. You?',time:'09:43'} ],
+      'u_ria': [ {from:'u_ria',text:'Submit that lab plz.',time:'yesterday'}, {from:'me',text:'On it.',time:'yesterday'} ]
+    };
+    STORAGE.setChats(demoChats);
+  }
+})();
+
+// ---------------------- Routing ----------------------
+function route(){
+  const hash = location.hash || '#signup';
+  if(hash.startsWith('#signup')) renderSignup();
+  else if(hash.startsWith('#home')) renderHome();
+  else if(hash.startsWith('#chat')){
+    const params = new URLSearchParams(hash.split('?')[1]);
+    const id = params.get('id');
+    renderChat(id);
+  } else renderSignup();
+}
+
+window.addEventListener('hashchange', route);
+
+// ---------------------- UI Renderers ----------------------
+function renderContacts(filter=''){
+  const cont = $('#contactsList'); cont.innerHTML='';
+  const users = STORAGE.getUsers();
+  const current = STORAGE.getCurrent();
+  users.forEach(u=>{
+    if(current && u.email===current.email) return; // don't list self
+    if(filter && !u.name.toLowerCase().includes(filter.toLowerCase())) return;
+    const el = document.createElement('div'); el.className='contact'; el.tabIndex=0;
+    el.innerHTML = `
+      <div class="avatar" style="width:44px;height:44px;border-radius:8px">${u.initials||u.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase()}</div>
+      <div class="meta">
+        <div class="name">${u.name}</div>
+        <div class="last small muted">${u.email}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end">
+        <div class="status-dot" style="background:${u.online? 'var(--accent-2)' : 'rgba(255,255,255,0.06)'}"></div>
+        <div class="small muted">${getChatPreview(u.id)}</div>
+      </div>
+    `;
+    el.addEventListener('click', ()=>{ location.hash = '#chat?id='+u.id; });
+    cont.appendChild(el);
+  });
+}
+
+function getChatPreview(id){
+  const chats = STORAGE.getChats();
+  const msgs = chats[id]||[];
+  const last = msgs[msgs.length-1];
+  return last ? (last.from==='me'? 'You: ':'') + (last.text.length>20? last.text.slice(0,18)+'...': last.text) : '';
+}
+
+function renderSignup(){
+  const area = $('#contentArea');
+  $('#mainTitle').textContent='Create an account';
+  $('#topRightMeta').textContent='Not signed in';
+  renderContacts();
+
+  area.innerHTML = `
+    <div class="center">
+      <div class="card">
+        <h2 style="margin-top:0">Welcome to ShadowChat</h2>
+        <p class="muted">Simple, local demo. Nothing gets sent anywhere. Fill in a name & email to continue.</p>
+        <label>Name</label>
+        <input id="suName" type="text" placeholder="Your name">
+        <label>Email</label>
+        <input id="suEmail" type="email" placeholder="you@site.com">
+        <label>Password (for demo only)</label>
+        <input id="suPass" type="password" placeholder="">
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <button class="btn" id="createBtn">Create account</button>
+          <button class="ghost" id="toHomeBtn">Continue as guest</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  $('#createBtn').addEventListener('click', ()=>{
+    const name = $('#suName').value.trim();
+    const email = $('#suEmail').value.trim();
+    if(!name || !email){ alert('Name and email required. Shocking.'); return; }
+    const users = STORAGE.getUsers();
+    if(users.find(u=>u.email===email)){ alert('Email already exists. Try a different one.'); return; }
+    const newUser = { id: 'u_'+uid(), name, email, initials: name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(), online:true };
+    users.push(newUser); STORAGE.setUsers(users); STORAGE.setCurrent(newUser);
+    // create empty chat store for this user if needed
+    location.hash = '#home';
+    route();
+  });
+
+  $('#toHomeBtn').addEventListener('click', ()=>{
+    const users = STORAGE.getUsers();
+    const guest = { id:'u_guest', name:'Guest', email:'guest@local', initials:'G' };
+    STORAGE.setCurrent(guest);
+    location.hash = '#home';
+    route();
+  });
+
+  // If there are existing users, show a "Sign in" button so people can sign in
+  // instead of creating a duplicate account. Ensure we don't append it multiple times.
+  try {
+    const existing = STORAGE.getUsers();
+    if (existing && existing.length > 0 && !$('#signInBtn')) {
+      const btnContainer = $('#createBtn').parentElement;
+      const signInBtn = document.createElement('button');
+      signInBtn.className = 'ghost';
+      signInBtn.id = 'signInBtn';
+      signInBtn.textContent = 'Sign in';
+      // place it next to the other action buttons
+      btnContainer.appendChild(signInBtn);
+
+      signInBtn.addEventListener('click', ()=>{
+        const email = $('#suEmail').value.trim();
+        if(!email){ alert('Enter your email to sign in.'); return; }
+        const users = STORAGE.getUsers();
+        const user = users.find(u=>u.email === email);
+        if(!user){ alert('No account found for that email. Please create one or continue as guest.'); return; }
+        STORAGE.setCurrent(user);
+        location.hash = '#home';
+        route();
+      });
+    }
+  } catch (e) {
+    // defensive: don't break signup if DOM assumptions change
+    console.warn('Could not add sign-in button', e);
+  }
+}
+
+function renderHome(){
+  const area = $('#contentArea');
+  const current = STORAGE.getCurrent();
+  if(!current){ location.hash = '#signup'; return; }
+  $('#mainTitle').textContent='Chats';
+  $('#topRightMeta').textContent=current.name;
+
+  area.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;height:100%">
+      <div class="card" style="background:transparent;padding:12px;border-radius:10px;display:flex;align-items:center;gap:12px">
+        <div style="flex:1">
+          <div style="font-weight:700">Hello, ${current.name.split(' ')[0]}</div>
+          <div class="muted small">Tap a contact to open chat</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="ghost" id="editProfile">Profile</button>
+          <button class="btn" id="composeMsg">New message</button>
+        </div>
+      </div>
+
+      <div style="flex:1;overflow:auto">
+        <div style="display:flex;gap:10px;flex-direction:column">
+          <div class="small muted">Recent</div>
+          <div id="recentList"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;justify-content:center;padding:8px">
+        <div class="small muted"></div>
+      </div>
+    </div>
+  `;
+
+  // render recent (just reuse contacts order)
+  const recentList = $('#recentList'); recentList.innerHTML='';
+  const users = STORAGE.getUsers();
+  users.forEach(u=>{ if(u.email===current.email) return; const row = document.createElement('div'); row.className='contact'; row.innerHTML=`<div style="width:44px;height:44px;border-radius:8px;display:grid;place-items:center;background:linear-gradient(90deg,var(--accent),#5a40f0);font-weight:700">${u.initials}</div><div style="margin-left:10px"><div style="font-weight:700">${u.name}</div><div class="small muted">${getChatPreview(u.id)}</div></div>`; row.addEventListener('click', ()=> location.hash = '#chat?id='+u.id); recentList.appendChild(row); });
+
+  // attach small actions
+  $('#composeMsg').addEventListener('click', ()=> openNewContactDialog());
+  $('#editProfile').addEventListener('click', ()=> openProfileEditor());
+}
+
+function renderChat(contactId){
+  const area = $('#contentArea');
+  const users = STORAGE.getUsers();
+  const contact = users.find(u=>u.id===contactId) || {name:'Unknown',id:contactId,initials:'?'};
+  const current = STORAGE.getCurrent();
+  if(!current){ location.hash = '#signup'; return; }
+  $('#mainTitle').textContent=contact.name;
+  $('#topRightMeta').textContent=current.name;
+
+  area.innerHTML = `
+    <div style="display:flex;flex-direction:column;height:100%">
+      <div style="display:flex;align-items:center;gap:12px;padding:6px 0">
+        <div class="avatar" style="width:52px;height:52px;border-radius:10px">${contact.initials}</div>
+        <div style="flex:1">
+          <div style="font-weight:700">${contact.name}</div>
+          <div class="small muted">${contact.online? 'Online' : 'Last seen recently'}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="ghost" id="backBtn">Back</button>
+        </div>
+      </div>
+
+      <div class="messages" id="messages"></div>
+
+      <div class="composer">
+        <input id="msgInput" placeholder="Type a message...">
+        <button class="btn" id="sendBtn">Send</button>
+      </div>
+    </div>
+  `;
+
+  $('#backBtn').addEventListener('click', ()=> location.hash = '#home');
+
+  // load messages
+  const chats = STORAGE.getChats();
+  const thread = chats[contactId]||[]; // each message {from,text,time}
+  const msgsContainer = $('#messages'); msgsContainer.innerHTML='';
+  thread.forEach(m => appendMsg(m));
+  msgsContainer.scrollTop = msgsContainer.scrollHeight;
+
+  $('#sendBtn').addEventListener('click', sendMessage);
+  $('#msgInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendMessage(); });
+
+  function sendMessage(){
+    const text = $('#msgInput').value.trim(); if(!text) return;
+    
+    // Validate message content
+    const validation = validateMessage(text);
+    if (!validation.ok) {
+      showWarning(validation.reason);
+      if (warnUser(contactId)) {
+        showWarning('User blocked for 5 minutes due to repeated violations');
+        location.hash = '#home';
+        return;
+      }
+      return;
+    }
+    
+    // Check if contact is blocked
+    const users = STORAGE.getUsers();
+    const contact = users.find(u => u.id === contactId);
+    if (contact?.blocked && contact.blocked > Date.now()) {
+      showWarning('This user is temporarily blocked');
+      return;
+    }
+    
+    const m = { from:'me', text, time: now() };
+    thread.push(m);
+    chats[contactId] = thread; STORAGE.setChats(chats);
+    appendMsg(m);
+    $('#msgInput').value = '';
+    msgsContainer.scrollTop = msgsContainer.scrollHeight;
+    // simulate reply after a short delay for demo fun
+    setTimeout(()=>{
+      const reply = { from: contactId, text: smallReply(text), time: now() };
+      thread.push(reply); STORAGE.setChats(chats); appendMsg(reply); msgsContainer.scrollTop = msgsContainer.scrollHeight;
+    }, 700 + Math.random()*900);
+    renderContacts($('#searchContacts').value);
+  }
+
+  function appendMsg(m){
+    const div = document.createElement('div'); div.className = 'msg ' + (m.from==='me' ? 'me' : 'them');
+    div.innerHTML = `<div>${escapeHtml(m.text)}</div><div class="time">${m.time}</div>`;
+    msgsContainer.appendChild(div);
+  }
+}
+
+// ---------------------- Small helpers ----------------------
+function escapeHtml(s){ return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+// Show warning toast
+function showWarning(message) {
+  const warn = document.createElement('div');
+  warn.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#ff4757;color:white;padding:12px 20px;border-radius:8px;z-index:1000;font-size:14px';
+  warn.textContent = message;
+  document.body.appendChild(warn);
+  setTimeout(() => document.body.removeChild(warn), 3000);
+}
+
+// ---------------------- Theme handling ----------------------
+function applyTheme(theme){
+  if(theme === 'light') document.documentElement.classList.add('light-theme');
+  else document.documentElement.classList.remove('light-theme');
+  try{ localStorage.setItem('sc_theme', theme); }catch(e){}
+  const btn = $('#themeToggleBtn');
+  if(btn) btn.textContent = theme === 'light' ? 'Dark' : 'Light';
+}
+
+function toggleTheme(){
+  const cur = localStorage.getItem('sc_theme') || 'dark';
+  const next = cur === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+}
+
+function smallReply(text){
+  const canned = ['Nice.', 'Haha good one.', 'I see.', 'On my way.', 'Give me a sec.'];
+  if(text.toLowerCase().includes('?')) return "Good question. I'll check.";
+  if(text.length<10) return canned[Math.floor(Math.random()*canned.length)];
+  return text.split(' ').slice(0,6).join(' ') + '...';
+}
+
+// ---------------------- Events and UI glue ----------------------
+$('#searchContacts').addEventListener('input', (e)=> renderContacts(e.target.value));
+$('#newContactBtn').addEventListener('click', openNewContactDialog);
+$('#logoutBtn').addEventListener('click', ()=>{ STORAGE.setCurrent(null); location.hash='#signup'; route(); });
+
+// new contact flow
+function openNewContactDialog(){
+  const name = prompt('New contact name'); if(!name) return;
+  const email = prompt('Contact email'); if(!email) return;
+  const users = STORAGE.getUsers();
+  const id = 'u_'+uid();
+  users.push({id,name,email,initials:name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(),online:true}); STORAGE.setUsers(users);
+  renderContacts();
+}
+
+function openProfileEditor(){
+  const cur = STORAGE.getCurrent(); if(!cur) return;
+  const name = prompt('Your display name', cur.name); if(!name) return;
+  cur.name = name; cur.initials = name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(); STORAGE.setCurrent(cur);
+  $('#miniAvatar').textContent = cur.initials;
+  route();
+}
+
+// initial UI setup
+(function init(){
+  const current = STORAGE.getCurrent(); if(current) $('#miniAvatar').textContent = current.initials || 'SC';
+  // apply saved theme (default: dark)
+  const savedTheme = localStorage.getItem('sc_theme') || 'dark';
+  applyTheme(savedTheme);
+
+  // attach theme toggle handler if the button exists
+  const tbtn = $('#themeToggleBtn'); if(tbtn) tbtn.addEventListener('click', toggleTheme);
+
+  renderContacts();
+  if(!location.hash) location.hash = '#signup';
+  route();
+})();
+
+// small accessibility nicety: keyboard nav for contact list
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='/' && document.activeElement.tagName!=='INPUT'){
+    e.preventDefault(); $('#searchContacts').focus();
+  }
